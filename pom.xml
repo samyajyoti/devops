@@ -8,7 +8,7 @@
       <groupId>com.javatpoint.application1</groupId>  
       <artifactId>testapp</artifactId>  
       <version>1.0</version>  
-      <packaging>war</packaging>  
+      <packaging>jar</packaging>  
       
       <name>Maven test</name>  
       <url>https://github.com/samyajyoti/devops.git</url>  
