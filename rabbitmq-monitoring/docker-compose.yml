@@ -1,0 +1,14 @@
+version: '3.5'
+services:
+
+  rabbitmq_monitoring:
+    build: .
+    image: rabbitmq_monitoring
+    container_name: rabbitmq_monitoring
+    restart: "always"
+    command: ./entrypoint.sh
+    volumes:
+      - ./:/code
+      - /var/run/docker.sock:/var/run/docker.sock
+    network_mode: host
+
