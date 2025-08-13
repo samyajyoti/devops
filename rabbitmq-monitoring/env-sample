@@ -1,0 +1,17 @@
+# RabbitMQ credentials
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USER=stag
+RABBITMQ_PASSWORD=64LH
+
+# RabbitMQ queue list (comma-separated)
+RABBITMQ_QUEUES=action,app_push_queue,assign_policy_save,asynchronous_sync_queue,audit_data_queue,call_queue,callback_queue,checksum_queue,device_callback_queue,emm_frp_queue,emm_upload_queue,fcm_queue,first_sync_queue,ios-process,knox_action_queue,policy_process_queue,process_data_queue,release_device,smartSwitch_queue,update_schedule_activity,upload_queue
+
+# Docker container name
+DOCKER_CONTAINER_NAME=stage
+
+# Slack webhook URL
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/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
+
+# Slack alert headline
+SLACK_ALERT_HEADLINE=RABBITMQ_ALERT_STAGEODYSY
