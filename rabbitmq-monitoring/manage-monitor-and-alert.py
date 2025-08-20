@@ -4,29 +4,27 @@ import time
 import requests
 import socket
 import logging
-import subprocess
+import os
+from dotenv import load_dotenv
+
+# Load .env file
+load_dotenv()
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-slack_webhook_url = 'https://hooks.slack.com/services/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'
+# Config from .env
+slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+rabbitmq_host = os.getenv("RABBITMQ_HOST", "localhost")
+rabbitmq_port = int(os.getenv("RABBITMQ_PORT", 5672))
+rabbitmq_username = os.getenv("RABBITMQ_USERNAME")
+rabbitmq_password = os.getenv("RABBITMQ_PASSWORD")
 
-rabbitmq_host = 'localhost'
-rabbitmq_port = 5672
-rabbitmq_username = 'stageodysy'
-rabbitmq_password = '64LHMwCVZF2zi'
-
-rabbitmq_queues = [
-    'action', 'app_push_queue', 'assign_policy_save', 'asynchronous_sync_queue', 'audit_data_queue',
-    'call_queue', 'callback_queue', 'checksum_queue', 'device_callback_queue', 'emm_frp_queue',
-    'emm_upload_queue', 'fcm_queue', 'first_sync_queue', 'ios-process', 'knox_action_queue',
-    'policy_process_queue', 'process_data_queue', 'release_device', 'smartSwitch_queue',
-    'update_schedule_activity', 'upload_queue'
-]
+# Load queue list from .env (comma separated)
+rabbitmq_queues = os.getenv("RABBITMQ_QUEUES", "").split(",")
+rabbitmq_queues = [q.strip() for q in rabbitmq_queues if q.strip()]  # clean empty values
 
 server_hostname = socket.gethostname()
-docker_container_name = "stage"
-
 connection = None
 channel = None
 
@@ -49,29 +47,6 @@ def send_slack_notification(message, details):
         logging.info("Slack notification sent successfully.")
     except Exception as e:
         logging.error(f"Error sending Slack notification: {e}")
-
-def restart_docker_container(container_name):
-    try:
-        subprocess.run(["docker", "restart", container_name], check=True)
-        logging.info(f"Container '{container_name}' restarted successfully.")
-        send_slack_notification(
-            "QUEUE STUCK → CONTAINER RESTARTED",
-            {
-                "Server": server_hostname,
-                "Container": container_name,
-                "Action": "Restarted due to queue not draining"
-            }
-        )
-    except subprocess.CalledProcessError as err:
-        logging.error(f"Failed to restart Docker container: {err}")
-        send_slack_notification(
-            "RESTART FAILURE",
-            {
-                "Server": server_hostname,
-                "Error": str(err),
-                "Action": "Manual intervention needed"
-            }
-        )
 
 def initialize_rabbitmq():
     global connection, channel
@@ -102,26 +77,23 @@ def check_queue_count(queue_name):
 
         logging.info(f"Queue: {queue_name} | Count: {current_count} | Consumers: {consumer_count}")
 
-        # Get last known count
         last_count = queue_last_count.get(queue_name, None)
 
-        # If queue is empty → reset any alert state
+        # Reset if queue is empty
         if current_count == 0:
             queue_alert_counts[queue_name] = 0
             queue_last_count[queue_name] = 0
             return
 
-        # First run (no previous value)
         if last_count is None:
             queue_last_count[queue_name] = current_count
             return
 
-        # Queue count has not decreased
         if current_count >= last_count:
             queue_alert_counts[queue_name] = queue_alert_counts.get(queue_name, 0) + 1
 
             send_slack_notification(
-                "RABBITMQ_ALERT_STAGEODYSY",
+                "🚨 RABBITMQ ALERT: Queue Possibly Stuck",
                 {
                     "Queue": queue_name,
                     "Server": server_hostname,
@@ -129,19 +101,12 @@ def check_queue_count(queue_name):
                     "Consumers": consumer_count,
                     "Previous count": last_count,
                     "Consecutive Alerts": queue_alert_counts[queue_name],
-                    "Action": "Investigate processing"
+                    "Action": "Investigate processing (no auto-restart)"
                 }
             )
-
-            if queue_alert_counts[queue_name] >= 2:
-                restart_docker_container(docker_container_name)
-                queue_alert_counts[queue_name] = 0  # Reset after restart
-
         else:
-            # Queue is draining → reset alert
             queue_alert_counts[queue_name] = 0
 
-        # Update last count
         queue_last_count[queue_name] = current_count
 
     except pika.exceptions.ChannelClosedByBroker:
